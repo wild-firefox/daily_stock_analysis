@@ -766,25 +766,88 @@ class EfinanceFetcher(BaseFetcher):
 
             change_col = '涨跌幅' if '涨跌幅' in df.columns else 'pct_chg'
             amount_col = '成交额' if '成交额' in df.columns else 'amount'
-            if change_col not in df.columns:
-                return None
 
-            df[change_col] = pd.to_numeric(df[change_col], errors='coerce')
-            stats = {
-                'up_count': len(df[df[change_col] > 0]),
-                'down_count': len(df[df[change_col] < 0]),
-                'flat_count': len(df[df[change_col] == 0]),
-                'limit_up_count': len(df[df[change_col] >= 9.9]),
-                'limit_down_count': len(df[df[change_col] <= -9.9]),
-                'total_amount': 0.0,
-            }
-            if amount_col in df.columns:
-                df[amount_col] = pd.to_numeric(df[amount_col], errors='coerce')
-                stats['total_amount'] = df[amount_col].sum() / 1e8
-            return stats
+            return self._calc_market_stats(df, change_col, amount_col)
         except Exception as e:
             logger.error(f"[efinance] 获取市场统计失败: {e}")
             return None
+        
+    def _calc_market_stats(
+        self,
+        df: pd.DataFrame,
+        change_col: str,
+        amount_col: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        """从行情 DataFrame 计算涨跌统计。"""
+        if change_col not in df.columns or df.empty:
+            return None
+            
+        import numpy as np
+
+        df = df.copy()
+        
+        # 提取基础比对数据：当前价、昨收
+        # 兼容不同接口返回的列名
+        code_col = next((c for c in ['股票代码', 'code', 'symbol'] if c in df.columns), None)
+        name_col = next((c for c in ['股票名称', 'name'] if c in df.columns), None)
+        change_col = next((col for col in ['change_percent', 'changepercent', '涨跌幅', 'trade_ratio'] if col in df.columns), None)
+        close_col = next((c for c in ['最新价', 'trade', 'current'] if c in df.columns), None)
+        pre_close_col = next((c for c in ['昨日收盘', '昨收','settlement', 'pre_close'] if c in df.columns), None)
+        
+
+        limit_up_count = 0
+        limit_down_count = 0
+
+        for code, name, current_price, pre_close in zip(
+            df[code_col], df[name_col], df[close_col], df[pre_close_col]
+        ):
+            str_code = str(code)
+            str_name = str(name).upper()
+            
+            # 获取去除前缀的纯数字代码
+            pure_code = str_code.replace("sh", "").replace("sz", "").replace("bj", "")
+            # A. 确定每只股票的涨跌幅比例 (使用纯数字代码判断)
+            if pure_code.startswith(('4', '8', '9')):
+                ratio = 0.30
+            elif pure_code.startswith(('688', '30')):
+                ratio = 0.20
+            elif 'ST' in str_name:
+                ratio = 0.05
+            else:
+                ratio = 0.10
+
+            # B. 严格按照 A 股规则计算涨跌停价：昨收 * (1 ± 比例) -> 四舍五入保留2位小数
+            limit_up_price = np.floor(pre_close * (1 + ratio) * 100 + 0.5) / 100.0
+            limit_down_price = np.floor(pre_close * (1 - ratio) * 100 + 0.5) / 100.0
+
+            limit_up_price_Tolerance = round(abs(pre_close * (1 + ratio) - limit_up_price), 6)
+            limit_down_price_Tolerance = round(abs(pre_close * (1 - ratio) - limit_down_price), 6)
+
+            # C. 精确比对
+            is_limit_up = (current_price > 0) and (abs(current_price - limit_up_price) <= limit_up_price_Tolerance)
+            is_limit_down = (current_price > 0) and (abs(current_price - limit_down_price) <= limit_down_price_Tolerance)
+
+            if is_limit_up:
+                limit_up_count += 1
+            if is_limit_down:
+                limit_down_count += 1
+                
+        # 统计数量
+        stats = {
+            'up_count': len(df[df[change_col] > 0]),
+            'down_count': len(df[df[change_col] < 0]),
+            'flat_count': len(df[df[change_col] == 0]),
+            'limit_up_count': limit_up_count,
+            'limit_down_count': limit_down_count,
+            'total_amount': 0.0,
+        }
+        
+        # 成交额统计
+        if amount_col and amount_col in df.columns:
+            df[amount_col] = pd.to_numeric(df[amount_col], errors='coerce')
+            stats['total_amount'] = (df[amount_col].sum() / 1e8)
+            
+        return stats
 
     def get_sector_rankings(self, n: int = 5) -> Optional[Tuple[List[Dict], List[Dict]]]:
         """
@@ -1000,3 +1063,20 @@ if __name__ == "__main__":
             print("[基本信息] 未获取到数据")
     except Exception as e:
         print(f"[基本信息] 获取失败: {e}")
+
+    # 测试市场统计 
+    print("\n" + "=" * 50)
+    print("Testing get_market_stats (xtdata)")
+    print("=" * 50)
+    try:
+        stats = fetcher.get_market_stats()
+        if stats:
+            print(f"Market Stats successfully computed:")
+            print(f"Up: {stats['up_count']} (Limit Up: {stats['limit_up_count']})")
+            print(f"Down: {stats['down_count']} (Limit Down: {stats['limit_down_count']})")
+            print(f"Flat: {stats['flat_count']}")
+            print(f"Total Amount: {stats['total_amount']:.2f} 亿 (Yi)")
+        else:
+            print("Failed to compute market stats.")
+    except Exception as e:
+        print(f"Failed to compute market stats: {e}")
