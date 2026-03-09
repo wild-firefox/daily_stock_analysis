@@ -42,7 +42,7 @@ from tenacity import (
 
 from patch.eastmoney_patch import eastmoney_patch
 from src.config import get_config
-from .base import BaseFetcher, DataFetchError, RateLimitError, STANDARD_COLUMNS, is_bse_code
+from .base import BaseFetcher, DataFetchError, RateLimitError, STANDARD_COLUMNS, is_bse_code, is_st_stock, is_kc_cy_stock, normalize_stock_code
 from .realtime_types import (
     UnifiedRealtimeQuote, ChipDistribution, RealtimeSource,
     get_realtime_circuit_breaker, get_chip_circuit_breaker,
@@ -1403,7 +1403,7 @@ class AkshareFetcher(BaseFetcher):
             logger.info("[API调用] ak.stock_zh_a_spot_em() 获取市场统计...")
             df = ak.stock_zh_a_spot_em()
             if df is not None and not df.empty:
-                return self._calc_market_stats(df, change_col='涨跌幅', amount_col='成交额')
+                return self._calc_market_stats(df)
         except Exception as e:
             logger.warning(f"[Akshare] 东财接口获取市场统计失败: {e}，尝试新浪接口")
 
@@ -1414,22 +1414,8 @@ class AkshareFetcher(BaseFetcher):
 
             logger.info("[API调用] ak.stock_zh_a_spot() 获取市场统计(新浪)...")
             df = ak.stock_zh_a_spot()
-            df.to_csv('sina_industry.csv', index=False, encoding='utf-8-sig')
             if df is not None and not df.empty:
-                change_col = None
-                for col in ['change_percent', 'changepercent', '涨跌幅', 'trade_ratio']:
-                    if col in df.columns:
-                        change_col = col
-                        break
-
-                amount_col = None
-                for col in ['amount', '成交额', 'trade_amount']:
-                    if col in df.columns:
-                        amount_col = col
-                        break
-
-                if change_col:
-                    return self._calc_market_stats(df, change_col=change_col, amount_col=amount_col)
+                return self._calc_market_stats(df)
         except Exception as e:
             logger.error(f"[Akshare] 新浪接口获取市场统计也失败: {e}")
 
@@ -1438,43 +1424,47 @@ class AkshareFetcher(BaseFetcher):
     def _calc_market_stats(
         self,
         df: pd.DataFrame,
-        change_col: str,
-        amount_col: Optional[str] = None
-    ) -> Optional[Dict[str, Any]]:
+        ) -> Optional[Dict[str, Any]]:
         """从行情 DataFrame 计算涨跌统计。"""
-        if change_col not in df.columns or df.empty:
-            return None
-            
         import numpy as np
 
         df = df.copy()
         
-        # 提取基础比对数据：当前价、昨收
-        # 兼容不同接口返回的列名
-        code_col = next((c for c in ['代码', 'code', 'symbol'] if c in df.columns), None)
-        name_col = next((c for c in ['名称', 'name'] if c in df.columns), None)
-        change_col = next((col for col in ['change_percent', 'changepercent', '涨跌幅', 'trade_ratio'] if col in df.columns), None)
-        close_col = next((c for c in ['最新价', 'trade', 'current'] if c in df.columns), None)
-        pre_close_col = next((c for c in ['昨收', 'settlement', 'pre_close'] if c in df.columns), None)
+        # 1. 提取基础比对数据：最新价、昨收
+        # 兼容不同接口返回的列名 sina/em efinance tushare xtdata
+        code_col = next((c for c in ['代码', '股票代码', 'ts_code','stock_code'] if c in df.columns), None)
+        name_col = next((c for c in ['名称', '股票名称','name','name'] if c in df.columns), None)
+        close_col = next((c for c in ['最新价', '最新价', 'close','lastPrice'] if c in df.columns), None)
+        pre_close_col = next((c for c in ['昨收', '昨日收盘', 'pre_close','lastClose'] if c in df.columns), None)
+        amount_col = next((c for c in ['成交额', '成交额', 'amount','amount'] if c in df.columns), None) 
         
-
         limit_up_count = 0
         limit_down_count = 0
+        up_count = 0
+        down_count = 0
+        flat_count = 0
 
-        for code, name, current_price, pre_close in zip(
-            df[code_col], df[name_col], df[close_col], df[pre_close_col]
+        for code, name, current_price, pre_close, amount in zip(
+            df[code_col], df[name_col], df[close_col], df[pre_close_col], df[amount_col]
         ):
-            str_code = str(code)
-            str_name = str(name).upper()
+            
+            # 停牌过滤 efinance 的停牌数据有时候会缺失价格显示为 '-'，em 显示为none
+            if pd.isna(current_price) or pd.isna(pre_close) or current_price in ['-'] or pre_close in ['-'] or amount == 0:
+                continue
+            
+            # em、efinance 为str 需要转换为float
+            current_price = float(current_price)
+            pre_close = float(pre_close)
             
             # 获取去除前缀的纯数字代码
-            pure_code = str_code.replace("sh", "").replace("sz", "").replace("bj", "")
+            pure_code = normalize_stock_code(str(code)) 
+
             # A. 确定每只股票的涨跌幅比例 (使用纯数字代码判断)
-            if pure_code.startswith(('4', '8', '9')):
+            if is_bse_code(pure_code): 
                 ratio = 0.30
-            elif pure_code.startswith(('688', '30')):
+            elif is_kc_cy_stock(pure_code): #pure_code.startswith(('688', '30')):
                 ratio = 0.20
-            elif 'ST' in str_name:
+            elif is_st_stock(name): #'ST' in str_name:
                 ratio = 0.05
             else:
                 ratio = 0.10
@@ -1483,23 +1473,31 @@ class AkshareFetcher(BaseFetcher):
             limit_up_price = np.floor(pre_close * (1 + ratio) * 100 + 0.5) / 100.0
             limit_down_price = np.floor(pre_close * (1 - ratio) * 100 + 0.5) / 100.0
 
-            limit_up_price_Tolerance = round(abs(pre_close * (1 + ratio) - limit_up_price), 6)
-            limit_down_price_Tolerance = round(abs(pre_close * (1 - ratio) - limit_down_price), 6)
+            limit_up_price_Tolerance = round(abs(pre_close * (1 + ratio) - limit_up_price), 10)
+            limit_down_price_Tolerance = round(abs(pre_close * (1 - ratio) - limit_down_price), 10)
 
             # C. 精确比对
-            is_limit_up = (current_price > 0) and (abs(current_price - limit_up_price) <= limit_up_price_Tolerance)
-            is_limit_down = (current_price > 0) and (abs(current_price - limit_down_price) <= limit_down_price_Tolerance)
+            if current_price > 0 :
+                is_limit_up = (current_price > 0) and (abs(current_price - limit_up_price) <= limit_up_price_Tolerance)
+                is_limit_down = (current_price > 0) and (abs(current_price - limit_down_price) <= limit_down_price_Tolerance)
 
-            if is_limit_up:
-                limit_up_count += 1
-            if is_limit_down:
-                limit_down_count += 1
+                if is_limit_up:
+                    limit_up_count += 1
+                if is_limit_down:
+                    limit_down_count += 1
+
+                if current_price > pre_close:
+                    up_count += 1
+                elif current_price < pre_close:
+                    down_count += 1
+                else:
+                    flat_count += 1
                 
         # 统计数量
         stats = {
-            'up_count': len(df[df[change_col] > 0]),
-            'down_count': len(df[df[change_col] < 0]),
-            'flat_count': len(df[df[change_col] == 0]),
+            'up_count': up_count,
+            'down_count': down_count,
+            'flat_count': flat_count,
             'limit_up_count': limit_up_count,
             'limit_down_count': limit_down_count,
             'total_amount': 0.0,
@@ -1662,7 +1660,7 @@ if __name__ == "__main__":
 
     # 测试市场统计
     print("\n" + "=" * 50)
-    print("Testing get_market_stats (xtdata)")
+    print("Testing get_market_stats (akshare)")
     print("=" * 50)
     try:
         stats = fetcher.get_market_stats()
