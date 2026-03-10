@@ -707,11 +707,20 @@ class TushareFetcher(BaseFetcher):
             china_now = datetime.now(ZoneInfo("Asia/Shanghai"))
             china_now_str = china_now.strftime("%H:%M")
             current_date = china_now.strftime("%Y%m%d")
-            
-            if china_now_str < '09:30' or china_now_str > '16:30':
-                use_realtime = False
+
+            start_date = (datetime.now() - pd.Timedelta(days=20)).strftime('%Y%m%d')
+            df_cal = self._api.trade_cal(exchange='SSE', start_date=start_date, end_date=current_date)
+
+            # 过滤出 is_open == 1 (开市) 的日期，并转换为列表
+            date_list = df_cal[df_cal['is_open'] == 1]['cal_date'].tolist()
+
+            if current_date in date_list:
+                if china_now_str < '09:30' or china_now_str > '16:30':
+                    use_realtime = False
+                else:
+                    use_realtime = True
             else:
-                use_realtime = True
+                use_realtime = False
 
             # 若实盘的时候使用 则使用其他可以实盘获取的数据源 akshare、efinance
             if use_realtime:
@@ -724,36 +733,31 @@ class TushareFetcher(BaseFetcher):
                     logger.error(f"[Tushare] ts.pro_api().rt_k 尝试获取实时数据失败: {e}")
                     return None
             else:
-                start_date = (datetime.now() - pd.Timedelta(days=20)).strftime('%Y%m%d')
-                df_cal = self._api.trade_cal(exchange='SSE', start_date=start_date, end_date=current_date)
 
-                # 过滤出 is_open == 1 (开市) 的日期，并转换为列表
-                date_list = df_cal[df_cal['is_open'] == 1]['cal_date'].tolist()
-                
                 if current_date not in date_list:
-                    last_date = date_list[0] 
+                    last_date = date_list[0] # 拿最近的日期
                 else:
                     if china_now_str < '09:30': 
                         last_date = date_list[1] # 拿取前一天的数据
-                    else:                    
+                    else:  # 即 '> 16:30'                  
                         last_date = date_list[0] # 拿取当天的数据
 
-                    try:
-                        df = self._api.daily(TS_CODE='3*.SZ,6*.SH,0*.SZ,92*.BJ',start_date=last_date, end_date=last_date)
-                        # 为防止不同接口返回的列名大小写不一致（例如 rt_k 返回小写，daily 返回大写），统一将列名转为小写
-                        df.columns = [col.lower() for col in df.columns]
+                try:
+                    df = self._api.daily(TS_CODE='3*.SZ,6*.SH,0*.SZ,92*.BJ',start_date=last_date, end_date=last_date)
+                    # 为防止不同接口返回的列名大小写不一致（例如 rt_k 返回小写，daily 返回大写），统一将列名转为小写
+                    df.columns = [col.lower() for col in df.columns]
 
-                        # 获取股票基础信息（包含代码和名称）
-                        df_basic = self._api.stock_basic(fields='ts_code,name')
-                        df = pd.merge(df, df_basic, on='ts_code', how='left')
-                        # 将 daily的 amount 列的值乘以 1000 来和其他数据源保持一致
-                        if 'amount' in df.columns:
-                            df['amount'] = df['amount'] * 1000
+                    # 获取股票基础信息（包含代码和名称）
+                    df_basic = self._api.stock_basic(fields='ts_code,name')
+                    df = pd.merge(df, df_basic, on='ts_code', how='left')
+                    # 将 daily的 amount 列的值乘以 1000 来和其他数据源保持一致
+                    if 'amount' in df.columns:
+                        df['amount'] = df['amount'] * 1000
 
-                        if df is not None and not df.empty:
-                            return self._calc_market_stats(df)
-                    except Exception as e:
-                        logger.error(f"[Tushare] ts.pro_api().daily 获取数据失败: {e}")
+                    if df is not None and not df.empty:
+                        return self._calc_market_stats(df)
+                except Exception as e:
+                    logger.error(f"[Tushare] ts.pro_api().daily 获取数据失败: {e}")
                     
 
             
