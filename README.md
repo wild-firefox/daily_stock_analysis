@@ -55,6 +55,7 @@
 | AI 模型 | [AIHubMix](https://aihubmix.com/?aff=CfMq)、Gemini、OpenAI 兼容、DeepSeek、通义千问、Claude 等（统一通过 [LiteLLM](https://github.com/BerriAI/litellm) 调用，支持多 Key 负载均衡）|
 | 行情数据 | AkShare、Tushare、Pytdx、Baostock、YFinance |
 | 新闻搜索 | Tavily、SerpAPI、Bocha、Brave、MiniMax |
+| 社交舆情 | [Stock Sentiment API](https://api.adanos.org/docs)（Reddit / X / Polymarket，仅美股，可选） |
 
 > 注：美股历史数据与实时行情统一使用 YFinance，确保复权一致性
 
@@ -121,7 +122,7 @@
 | `EMAIL_SENDER` | 发件人邮箱（如 `xxx@qq.com`） | 可选 |
 | `EMAIL_PASSWORD` | 邮箱授权码（非登录密码） | 可选 |
 | `EMAIL_RECEIVERS` | 收件人邮箱（多个用逗号分隔，留空则发给自己） | 可选 |
-| `EMAIL_SENDER_NAME` | 邮件发件人显示名称（默认：daily_stock_analysis股票分析助手） | 可选 |
+| `EMAIL_SENDER_NAME` | 邮件发件人显示名称（默认：daily_stock_analysis股票分析助手，支持中文并自动编码邮件头） | 可选 |
 | `STOCK_GROUP_N` / `EMAIL_GROUP_N` | 股票分组发往不同邮箱（如 `STOCK_GROUP_1=600519,300750` `EMAIL_GROUP_1=user1@example.com`） | 可选 |
 | `PUSHPLUS_TOKEN` | PushPlus Token（[获取地址](https://www.pushplus.plus)，国内推送服务） | 可选 |
 | `PUSHPLUS_TOPIC` | PushPlus 群组编码（一对多推送，配置后消息推送给群组所有订阅用户） | 可选 |
@@ -158,9 +159,12 @@
 | `BOCHA_API_KEYS` | [博查搜索](https://open.bocha.cn/) Web Search API（中文搜索优化，支持AI摘要，多个key用逗号分隔） | 可选 |
 | `BRAVE_API_KEYS` | [Brave Search](https://brave.com/search/api/) API（隐私优先，美股优化，多个key用逗号分隔） | 可选 |
 | `SEARXNG_BASE_URLS` | SearXNG 自建实例（无配额兜底，需在 settings.yml 启用 format: json） | 可选 |
+| `SOCIAL_SENTIMENT_API_KEY` | [Stock Sentiment API](https://api.adanos.org/docs)（Reddit/X/Polymarket 社交舆情，仅美股） | 可选 |
+| `SOCIAL_SENTIMENT_API_URL` | 自定义社交舆情 API 地址（默认 `https://api.adanos.org`） | 可选 |
 | `TUSHARE_TOKEN` | [Tushare Pro](https://tushare.pro/weborder/#/login?reg=834638 ) Token | 可选 |
 | `PREFETCH_REALTIME_QUOTES` | 实时行情预取开关：设为 `false` 可禁用全市场预取（默认 `true`） | 可选 |
 | `WECHAT_MSG_TYPE` | 企微消息类型，默认 markdown，支持配置 text 类型，发送纯 markdown 文本 | 可选 |
+| `NEWS_STRATEGY_PROFILE` | 新闻策略窗口档位：`ultra_short`(1天) / `short`(3天) / `medium`(7天) / `long`(30天)，默认 `short` | 可选 |
 | `NEWS_MAX_AGE_DAYS` | 新闻最大时效（天），默认 3，避免使用过时信息 | 可选 |
 | `BIAS_THRESHOLD` | 乖离率阈值（%），默认 5.0，超过提示不追高；强势趋势股自动放宽 | 可选 |
 | `AGENT_MODE` | 开启 Agent 策略问股模式（`true`/`false`，默认 false） | 可选 |
@@ -360,6 +364,8 @@ LITELLM_MODEL=openai/deepseek-chat
 
 访问 `http://127.0.0.1:8000` 即可使用。
 
+> 在云服务器上部署后，不知道浏览器该输入什么地址？请看 [云服务器 Web 界面访问指南](docs/deploy-webui-cloud.md)。
+
 > 也可以使用 `python main.py --serve` (等效命令)
 
 ## 🗺️ Roadmap
@@ -432,95 +438,3 @@ npm run build
 本项目仅供学习和研究使用，不构成任何投资建议。股市有风险，投资需谨慎。作者不对使用本项目产生的任何损失负责。
 
 ---
-
-## Portfolio P0 PR1 (Core Ledger and Snapshot)
-
-This phase introduces a minimal-intrusion portfolio core workflow for account/events/snapshot.
-
-- New API group: `/api/v1/portfolio`
-- Covered endpoints:
-  - `POST /accounts`, `GET /accounts`, `PUT /accounts/{account_id}`, `DELETE /accounts/{account_id}`
-  - `POST /trades`, `POST /cash-ledger`, `POST /corporate-actions`
-  - `GET /snapshot`
-- Valuation replay supports `fifo` (default) and `avg`.
-- Same-day deterministic ordering is fixed to: `cash -> corporate action -> trade`.
-- Duplicate `trade_uid` in same account returns `409 conflict`.
-- Snapshot cache persistence is fail-open and written atomically (positions/lots/snapshot in one transaction).
-
-Rollback:
-- PR1 scope is isolated to portfolio tables/repository/service/API module.
-- Revert by removing portfolio route exposure and related portfolio module changes.
-
-Validated scope:
-- Replay consistency: FIFO vs AVG, partial sell
-- Corporate actions: cash dividend and split adjustment
-- Same-day ordering edge cases
-- API contract: happy path + invalid cost method + duplicate trade_uid conflict
-
-## Portfolio P0 PR2 (Import and Risk)
-
-This phase extends portfolio capability with import and risk monitoring while keeping the existing architecture stable.
-
-- Broker CSV import (`huatai` / `citic` / `cmb`) via unified parse/commit flow.
-- Dedup strategy:
-  - `trade_uid` remains the primary duplicate key when available.
-  - Key-field hash is also persisted/checked for `trade_uid` records, so mixed imports with/without `trade_uid` stay idempotent.
-- New risk API for concentration, drawdown, and stop-loss-near warnings.
-- Risk drawdown now backfills missing daily snapshots inside the lookback window on first report call.
-- FX online refresh with fail-open stale fallback when online quote fetch fails.
-
-New endpoints:
-- `POST /api/v1/portfolio/imports/csv/parse`
-- `POST /api/v1/portfolio/imports/csv/commit`
-- `GET /api/v1/portfolio/risk`
-- `POST /api/v1/portfolio/fx/refresh`
-
-## Portfolio P0 PR3 (Web + Agent Consumption Loop)
-
-This phase delivers the consumption layer on top of PR1/PR2 without changing core ledger architecture.
-
-- Web route:
-  - Added `/portfolio` page in `apps/dsa-web` with:
-    - portfolio snapshot cards
-    - full portfolio / single account switch
-    - concentration pie chart (Top Positions, via Recharts)
-    - risk summary blocks (concentration / drawdown / stop-loss-near)
-- Agent tool:
-  - Added `get_portfolio_snapshot` in `src/agent/tools/data_tools.py`
-  - Default output is compact summary for low token usage
-  - Optional `include_positions=true` to return detailed positions
-  - Optional risk block with fail-open behavior
-
-Compatibility and rollback:
-- PR3 only appends a new web page, API client/types, and one Agent tool.
-- No existing API schema is removed.
-- Rollback by removing the `/portfolio` route and `get_portfolio_snapshot` tool registration.
-
-## Portfolio P0 PR4 (Gap Closure)
-
-This phase closes remaining P0 gaps on top of PR3 with additive changes only.
-
-- API query closure:
-  - `GET /api/v1/portfolio/trades`
-  - `GET /api/v1/portfolio/cash-ledger`
-  - `GET /api/v1/portfolio/corporate-actions`
-  - Common filters: `account_id`, `date_from`, `date_to`, `page`, `page_size`
-- CSV framework upgrade:
-  - parser registry for extensible broker adapters
-  - new broker discovery endpoint: `GET /api/v1/portfolio/imports/csv/brokers`
-- Web portfolio page closure:
-  - added inline account creation entry (empty-state guided)
-  - manual entry forms for trade/cash/corporate action
-  - CSV parse/commit entry (`dry_run` supported)
-  - event list with type switch, filters, pagination
-  - broker selector fail-open fallback to built-in `huatai/citic/cmb` when broker-list API is unavailable
-- Risk semantics extension:
-  - new `sector_concentration` block in risk response
-  - A-share sector mapping via `get_belong_boards`
-  - non-CN/lookup failure falls back to `UNCLASSIFIED` (fail-open)
-  - pie chart prefers sector concentration, then degrades to top positions
-
-Compatibility and rollback:
-- Existing endpoints and keys remain available.
-- New fields are additive only (`sector_concentration`, list responses, broker list).
-- Rollback can remove PR4-only endpoints/UI blocks without affecting PR1-PR3 core ledger flow.

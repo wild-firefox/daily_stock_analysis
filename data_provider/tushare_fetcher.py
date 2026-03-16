@@ -272,7 +272,11 @@ class TushareFetcher(BaseFetcher):
         # Already has suffix
         if '.' in code:
             return code.upper()
-        
+
+        # HK stocks are not supported by Tushare
+        if _is_hk_market(code):
+            raise DataFetchError(f"TushareFetcher 不支持港股 {code}，请使用 AkshareFetcher")
+
         # ETF: determine exchange by prefix
         if code.startswith(_ETF_SH_PREFIXES) and len(code) == 6:
             return f"{code}.SH"
@@ -321,6 +325,10 @@ class TushareFetcher(BaseFetcher):
         # US stocks not supported
         if _is_us_code(stock_code):
             raise DataFetchError(f"TushareFetcher 不支持美股 {stock_code}，请使用 AkshareFetcher 或 YfinanceFetcher")
+
+        # HK stocks not supported
+        if _is_hk_market(stock_code):
+            raise DataFetchError(f"TushareFetcher 不支持港股 {stock_code}，请使用 AkshareFetcher")
         
         # Rate-limit check
         self._check_rate_limit()
@@ -422,7 +430,11 @@ class TushareFetcher(BaseFetcher):
         if self._api is None:
             logger.warning("Tushare API 未初始化，无法获取股票名称")
             return None
-        
+
+        # HK stocks not supported by Tushare stock_basic
+        if _is_hk_market(stock_code):
+            return None
+
         # 检查缓存
         if hasattr(self, '_stock_name_cache') and stock_code in self._stock_name_cache:
             return self._stock_name_cache[stock_code]
@@ -518,6 +530,11 @@ class TushareFetcher(BaseFetcher):
             UnifiedRealtimeQuote 对象，失败返回 None
         """
         if self._api is None:
+            return None
+
+        # HK stocks not supported by Tushare
+        if _is_hk_market(stock_code):
+            logger.debug(f"TushareFetcher 跳过港股实时行情 {stock_code}")
             return None
 
         from .realtime_types import (
