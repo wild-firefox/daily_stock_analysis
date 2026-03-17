@@ -1776,81 +1776,81 @@ if __name__ == "__main__":
     
     fetcher = AkshareFetcher()
     
-    # # 测试普通股票
-    # print("=" * 50)
-    # print("测试普通股票数据获取")
-    # print("=" * 50)
-    # try:
-    #     df = fetcher.get_daily_data('600519')  # 茅台
-    #     print(f"[股票] 获取成功，共 {len(df)} 条数据")
-    #     print(df.tail())
-    # except Exception as e:
-    #     print(f"[股票] 获取失败: {e}")
+    # 测试普通股票
+    print("=" * 50)
+    print("测试普通股票数据获取")
+    print("=" * 50)
+    try:
+        df = fetcher.get_daily_data('600519')  # 茅台
+        print(f"[股票] 获取成功，共 {len(df)} 条数据")
+        print(df.tail())
+    except Exception as e:
+        print(f"[股票] 获取失败: {e}")
     
-    # # 测试 ETF 基金
-    # print("\n" + "=" * 50)
-    # print("测试 ETF 基金数据获取")
-    # print("=" * 50)
-    # try:
-    #     df = fetcher.get_daily_data('512400')  # 有色龙头ETF
-    #     print(f"[ETF] 获取成功，共 {len(df)} 条数据")
-    #     print(df.tail())
-    # except Exception as e:
-    #     print(f"[ETF] 获取失败: {e}")
+    # 测试 ETF 基金
+    print("\n" + "=" * 50)
+    print("测试 ETF 基金数据获取")
+    print("=" * 50)
+    try:
+        df = fetcher.get_daily_data('512400')  # 有色龙头ETF
+        print(f"[ETF] 获取成功，共 {len(df)} 条数据")
+        print(df.tail())
+    except Exception as e:
+        print(f"[ETF] 获取失败: {e}")
     
-    # # 测试 ETF 实时行情
-    # print("\n" + "=" * 50)
-    # print("测试 ETF 实时行情获取")
-    # print("=" * 50)
-    # try:
-    #     quote = fetcher.get_realtime_quote('512880')  # 证券ETF
-    #     if quote:
-    #         print(f"[ETF实时] {quote.name}: 价格={quote.price}, 涨跌幅={quote.change_pct}%")
-    #     else:
-    #         print("[ETF实时] 未获取到数据")
-    # except Exception as e:
-    #     print(f"[ETF实时] 获取失败: {e}")
+    # 测试 ETF 实时行情
+    print("\n" + "=" * 50)
+    print("测试 ETF 实时行情获取")
+    print("=" * 50)
+    try:
+        quote = fetcher.get_realtime_quote('512880')  # 证券ETF
+        if quote:
+            print(f"[ETF实时] {quote.name}: 价格={quote.price}, 涨跌幅={quote.change_pct}%")
+        else:
+            print("[ETF实时] 未获取到数据")
+    except Exception as e:
+        print(f"[ETF实时] 获取失败: {e}")
     
-    # # 测试港股历史数据
-    # print("\n" + "=" * 50)
-    # print("测试港股历史数据获取")
-    # print("=" * 50)
-    # try:
-    #     df = fetcher.get_daily_data('00700')  # 腾讯控股
-    #     print(f"[港股] 获取成功，共 {len(df)} 条数据")
-    #     print(df.tail())
-    # except Exception as e:
-    #     print(f"[港股] 获取失败: {e}")
+    # 测试港股历史数据
+    print("\n" + "=" * 50)
+    print("测试港股历史数据获取")
+    print("=" * 50)
+    try:
+        df = fetcher.get_daily_data('00700')  # 腾讯控股
+        print(f"[港股] 获取成功，共 {len(df)} 条数据")
+        print(df.tail())
+    except Exception as e:
+        print(f"[港股] 获取失败: {e}")
     
-    # # 测试港股实时行情
-    # print("\n" + "=" * 50)
-    # print("测试港股实时行情获取")
-    # print("=" * 50)
-    # try:
-    #     quote = fetcher.get_realtime_quote('00700')  # 腾讯控股
-    #     if quote:
-    #         print(f"[港股实时] {quote.name}: 价格={quote.price}, 涨跌幅={quote.change_pct}%")
-    #     else:
-    #         print("[港股实时] 未获取到数据")
-    # except Exception as e:
-    #     print(f"[港股实时] 获取失败: {e}")
+    # 测试港股实时行情
+    print("\n" + "=" * 50)
+    print("测试港股实时行情获取")
+    print("=" * 50)
+    try:
+        quote = fetcher.get_realtime_quote('00700')  # 腾讯控股
+        if quote:
+            print(f"[港股实时] {quote.name}: 价格={quote.price}, 涨跌幅={quote.change_pct}%")
+        else:
+            print("[港股实时] 未获取到数据")
+    except Exception as e:
+        print(f"[港股实时] 获取失败: {e}")
 
-    # # 测试市场统计
-    # print("\n" + "=" * 50)
-    # print("Testing get_market_stats (akshare)")
-    # print("=" * 50)
-    # try:
-    #     stats = fetcher.get_market_stats()
-    #     if stats:
-    #         print(f"Market Stats successfully computed:")
-    #         print(f"Up: {stats['up_count']} (Limit Up: {stats['limit_up_count']})")
-    #         print(f"Down: {stats['down_count']} (Limit Down: {stats['limit_down_count']})")
-    #         print(f"Flat: {stats['flat_count']}")
-    #         print(f"Total Amount: {stats['total_amount']:.2f} 亿 (Yi)")
-    #     else:
-    #         print("Failed to compute market stats.")
-    # except Exception as e:
-    #     print(f"Failed to compute market stats: {e}")
+    # 测试市场统计
+    print("\n" + "=" * 50)
+    print("Testing get_market_stats (akshare)")
+    print("=" * 50)
+    try:
+        stats = fetcher.get_market_stats()
+        if stats:
+            print(f"Market Stats successfully computed:")
+            print(f"Up: {stats['up_count']} (Limit Up: {stats['limit_up_count']})")
+            print(f"Down: {stats['down_count']} (Limit Down: {stats['limit_down_count']})")
+            print(f"Flat: {stats['flat_count']}")
+            print(f"Total Amount: {stats['total_amount']:.2f} 亿 (Yi)")
+        else:
+            print("Failed to compute market stats.")
+    except Exception as e:
+        print(f"Failed to compute market stats: {e}")
 
     # 测试筹码分布数据
     print("\n" + "=" * 50)

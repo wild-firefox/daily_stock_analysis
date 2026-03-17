@@ -32,7 +32,6 @@ from tenacity import (
 )
 
 from .base import BaseFetcher, DataFetchError, RateLimitError, STANDARD_COLUMNS,is_bse_code, is_st_stock, is_kc_cy_stock, normalize_stock_code, _is_hk_market
-from .base import BaseFetcher, DataFetchError, RateLimitError, STANDARD_COLUMNS,is_bse_code, is_st_stock, is_kc_cy_stock, normalize_stock_code
 from .realtime_types import UnifiedRealtimeQuote, ChipDistribution
 from src.config import get_config
 import os
@@ -1105,35 +1104,35 @@ if __name__ == "__main__":
     
     fetcher = TushareFetcher()
     
-    # try:
-    #     # 测试历史数据
-    #     df = fetcher.get_daily_data('600519')  # 茅台
-    #     print(f"获取成功，共 {len(df)} 条数据")
-    #     print(df.tail())
+    try:
+        # 测试历史数据
+        df = fetcher.get_daily_data('600519')  # 茅台
+        print(f"获取成功，共 {len(df)} 条数据")
+        print(df.tail())
         
-    #     # 测试股票名称
-    #     name = fetcher.get_stock_name('600519')
-    #     print(f"股票名称: {name}")
+        # 测试股票名称
+        name = fetcher.get_stock_name('600519')
+        print(f"股票名称: {name}")
         
-    # except Exception as e:
-    #     print(f"获取失败: {e}")
+    except Exception as e:
+        print(f"获取失败: {e}")
 
-    # # 测试市场统计
-    # print("\n" + "=" * 50)
-    # print("Testing get_market_stats (tushare)")
-    # print("=" * 50)
-    # try:
-    #     stats = fetcher.get_market_stats()
-    #     if stats:
-    #         print(f"Market Stats successfully computed:")
-    #         print(f"Up: {stats['up_count']} (Limit Up: {stats['limit_up_count']})")
-    #         print(f"Down: {stats['down_count']} (Limit Down: {stats['limit_down_count']})")
-    #         print(f"Flat: {stats['flat_count']}")
-    #         print(f"Total Amount: {stats['total_amount']:.2f} 亿 (Yi)")
-    #     else:
-    #         print("Failed to compute market stats.")
-    # except Exception as e:
-    #     print(f"Failed to compute market stats: {e}")
+    # 测试市场统计
+    print("\n" + "=" * 50)
+    print("Testing get_market_stats (tushare)")
+    print("=" * 50)
+    try:
+        stats = fetcher.get_market_stats()
+        if stats:
+            print(f"Market Stats successfully computed:")
+            print(f"Up: {stats['up_count']} (Limit Up: {stats['limit_up_count']})")
+            print(f"Down: {stats['down_count']} (Limit Down: {stats['limit_down_count']})")
+            print(f"Flat: {stats['flat_count']}")
+            print(f"Total Amount: {stats['total_amount']:.2f} 亿 (Yi)")
+        else:
+            print("Failed to compute market stats.")
+    except Exception as e:
+        print(f"Failed to compute market stats: {e}")
 
 
     # 测试筹码分布数据
