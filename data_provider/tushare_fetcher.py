@@ -998,7 +998,7 @@ class TushareFetcher(BaseFetcher):
             return top_sectors, bottom_sectors
 
         # 15:30之后才有当天数据
-        start_date = self.get_trade_time(early_time='00:00', late_time='15:30')
+        start_date = self.get_trade_time(early_time='00:00', late_time='15:25')
         if not start_date:
             return None
 

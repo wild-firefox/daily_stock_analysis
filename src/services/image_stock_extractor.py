@@ -215,7 +215,7 @@ def _resolve_vision_model() -> str:
     if not model:
         # Fallback: infer from available keys
         if cfg.gemini_api_keys:
-            model = "gemini/gemini-2.0-flash"
+            model = "gemini-3-flash-preview" # 2.5 # gemini-3-flash-preview
         elif cfg.anthropic_api_keys:
             model = f"anthropic/{cfg.anthropic_model or 'claude-3-5-sonnet-20241022'}"
         elif cfg.openai_api_keys:
@@ -224,8 +224,36 @@ def _resolve_vision_model() -> str:
             return ""
     # Gemini 3 does not support vision; downgrade to gemini-2.0-flash
     if "gemini-3" in model:
-        model = "gemini/gemini-2.0-flash"
+        model = "gemini/gemini-2.0-flash" # 2.5 # gemini-3-flash-preview
     return model
+
+def _resolve_vision_models() -> List[str]:
+    """获取所有候选的 Vision 模型列表（按优先级排序），支持自适应降级。"""
+    cfg = get_config()
+    # Prefer explicit vision model, then OPENAI_VISION_MODEL alias, then primary litellm model
+    custom_model = (cfg.vision_model or cfg.openai_vision_model or cfg.litellm_model or "").strip()
+    
+    # 如果用户显式指定了模型，优先用指定的
+    if custom_model:
+        # 兼容处理：Gemini 3 暂不支持 Vision，向下兼容提供列表
+        if "gemini-3" in custom_model:
+             return ["gemini/gemini-2.5-flash", "gemini/gemini-3-flash-preview"]
+        return [custom_model]
+
+    candidates = []
+    # 自动探测 Gemini 免费层模型（按速度/成本分级）
+    if cfg.gemini_api_keys:
+        candidates.extend([
+            "gemini/gemini-2.5-flash",
+            "gemini/gemini-3-flash-preview",
+            "gemini/gemini-2.0-flash"
+        ])
+    elif cfg.anthropic_api_keys:
+        candidates.append(f"anthropic/{cfg.anthropic_model or 'claude-3-5-sonnet-20241022'}")
+    elif cfg.openai_api_keys:
+        candidates.append(f"openai/{cfg.openai_model or 'gpt-4o-mini'}")
+        
+    return candidates
 
 
 def _get_api_keys_for_model(model: str, cfg: Config) -> List[str]:
@@ -237,13 +265,10 @@ def _get_api_keys_for_model(model: str, cfg: Config) -> List[str]:
     return [k for k in cfg.openai_api_keys if k and len(k) >= 8]
 
 
-def _call_litellm_vision(image_b64: str, mime_type: str, api_key: Optional[str] = None) -> str:
+def _call_litellm_vision(image_b64: str, mime_type: str, model: str, api_key: Optional[str] = None) -> str:
     """Extract stock codes from an image using litellm (all providers via OpenAI vision format)."""
     global litellm
     cfg = get_config()
-    model = _resolve_vision_model()
-    if not model:
-        raise ValueError("未配置 Vision API。请设置 LITELLM_MODEL 或相关 API Key。")
 
     keys = _get_api_keys_for_model(model, cfg)
     if not keys:
@@ -302,6 +327,7 @@ def extract_stock_codes_from_image(
     Raises:
         ValueError: 图片无效、未配置 Vision API 或提取失败时。
     """
+    
     mime_type = (mime_type or "image/jpeg").strip().lower().split(";")[0].strip()
     if mime_type not in ALLOWED_MIME:
         raise ValueError(f"不支持的图片类型: {mime_type}。允许: {list(ALLOWED_MIME)}")
@@ -315,28 +341,43 @@ def extract_stock_codes_from_image(
     _verify_image_magic_bytes(image_bytes, mime_type)
 
     image_b64 = base64.b64encode(image_bytes).decode("ascii")
-    model = _resolve_vision_model()
-    keys = _get_api_keys_for_model(model, get_config())
+    models = _resolve_vision_models()
+    if not models:
+        raise ValueError("未配置 Vision API。请设置 LITELLM_MODEL 或相关 API Key。")
 
+    cfg = get_config()
     last_error: Optional[Exception] = None
-    for attempt in range(3):
-        try:
-            key = random.choice(keys) if keys else None
-            raw = _call_litellm_vision(image_b64, mime_type, api_key=key)
-            logger.debug("[ImageExtractor] raw LLM response:\n%s", raw)
-            items = _parse_items_from_text(raw)
-            logger.info(
-                f"[ImageExtractor] {model} 提取 {len(items)} 个: "
-                f"{[(i[0], i[1]) for i in items[:5]]}{'...' if len(items) > 5 else ''}"
-            )
-            return items, raw
-        except Exception as e:
-            last_error = e
-            if attempt < 2:
-                delay = 2 ** attempt
-                logger.warning(f"[ImageExtractor] 尝试 {attempt + 1}/3 失败，{delay}s 后重试: {e}")
-                time.sleep(delay)
+    
+    for model in models:
+        keys = _get_api_keys_for_model(model, cfg)
+        if not keys:
+            continue
+
+        for attempt in range(2): # 每个模型最多尝试 2 次
+            try:
+                key = random.choice(keys) if keys else None
+                raw = _call_litellm_vision(image_b64, mime_type, model=model, api_key=key)
+                logger.debug("[ImageExtractor] raw LLM response:\n%s", raw)
+                items = _parse_items_from_text(raw)
+                logger.info(
+                    f"[ImageExtractor] {model} 提取 {len(items)} 个: "
+                    f"{[(i[0], i[1]) for i in items[:5]]}{'...' if len(items) > 5 else ''}"
+                )
+                return items, raw
+            except Exception as e:
+                last_error = e
+                error_msg = str(e).lower()
+                
+                # 遇到额度限制或极严重鉴权错误时，立即切换下一个模型，不浪费时间重试
+                if any(k in error_msg for k in ["429", "quota", "limit", "exhausted"]):
+                    logger.warning(f"[ImageExtractor] 模型 {model} 额度/并发受限，准备切换备用模型...")
+                    break 
+
+                if attempt < 1:
+                    delay = 2
+                    logger.warning(f"[ImageExtractor] 模型 {model} 尝试 {attempt + 1}/2 失败，{delay}s 后重试: {e}")
+                    time.sleep(delay)
 
     raise ValueError(
-        f"Vision API 调用失败，请检查 API Key 与网络: {last_error}"
+        f"Vision API 调用失败，已穷尽所有可用模型。最后错误: {last_error}"
     ) from last_error

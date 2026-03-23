@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### 新功能
+
+- 🧾 **mian函数增加 --img-path -txt-path 字段** — 使用`python main.py --txt-path test.txt`,`python main.py --image-path test.jpg` 可直接使用识别图片或文字功能来进行对识别出的股票进行分析，`python main.py --image-path test.jpg --stocks 600519`表示加上手动配置的
+
 ### 修复
 
 - 🧾 **Web 报告透明度区复制按钮层级修复**（#749）— `ReportDetails` 中“原始分析结果 / 分析快照”的复制按钮补齐可点击层级，避免被下方 JSON 内容覆盖后出现按钮可见但无法点击的问题。

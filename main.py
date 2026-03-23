@@ -91,6 +91,18 @@ def parse_arguments() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        '--image-path',
+        type=str,
+        help='指定包含股票信息的图片路径，系统将自动识别提取并进行分析'
+    )
+
+    parser.add_argument(
+        '--txt-path',
+        type=str,
+        help='指定包含股票信息的文本文件路径，系统将自动使用大模型提取股票代码'
+    )
+
+    parser.add_argument(
         '--no-notify',
         action='store_true',
         help='不发送推送通知'
@@ -533,11 +545,91 @@ def main() -> int:
     for warning in warnings:
         logger.warning(warning)
 
-    # 解析股票列表（统一为大写 Issue #355）
-    stock_codes = None
+    # 动态构建从 CLI 和图片提取的股票列表
+    cmd_stocks = []
+    
     if args.stocks:
-        stock_codes = [canonical_stock_code(c) for c in args.stocks.split(',') if (c or "").strip()]
-        logger.info(f"使用命令行指定的股票列表: {stock_codes}")
+        cmd_stocks.extend([c.strip() for c in args.stocks.split(',') if c.strip()])
+
+    # === 新增：从图片提取股票 ===
+    if getattr(args, 'image_path', None):
+        image_path = args.image_path
+        if not os.path.exists(image_path):
+            logger.error(f"指定的图片不存在: {image_path}")
+            return 1
+            
+        logger.info(f"正在使用 Vision LLM 从图片提取股票代码: {image_path} (可能需要 10~40 秒...)")
+        
+        # 匹配 MIME 类型
+        if image_path.lower().endswith((".jpg", ".jpeg")):
+            mime_type = "image/jpeg"
+        elif image_path.lower().endswith(".webp"):
+            mime_type = "image/webp"
+        elif image_path.lower().endswith(".gif"):
+            mime_type = "image/gif"
+        else:
+            mime_type = "image/png"
+            
+        try:
+            # 延迟引入以节省不使用此功能时的启动时间
+            from src.services.image_stock_extractor import extract_stock_codes_from_image
+            with open(image_path, "rb") as f:
+                image_bytes = f.read()
+            
+            items, _ = extract_stock_codes_from_image(image_bytes, mime_type)
+            extracted = [item[0] for item in items if item[0]]
+            
+            if not extracted:
+                logger.warning("\n⚠️ 未能从图片中识别到任何股票代码。")
+            else:
+                logger.info("\n✅ 图片识别提取结果：")
+                for code, name, conf in items:
+                    logger.info(f"  - 代码: {code} | 名称: {name or '未知'} | 置信度: {conf}")
+                cmd_stocks.extend(extracted)
+        except Exception as e:
+            logger.error(f"从图片提取股票代码失败: {e}")
+            return 1
+        
+    # === 新增：从文本文件提取股票 ===
+    if getattr(args, 'txt_path', None):
+        txt_path = args.txt_path
+        if not os.path.exists(txt_path):
+            logger.error(f"指定的文本文件不存在: {txt_path}")
+            return 1
+            
+        logger.info(f"正在使用 LLM 从文本提取股票代码: {txt_path} ...")
+        try:
+            from src.services.text_stock_extractor import extract_stock_codes_from_text
+            
+            # 使用健壮的文件读取（优先 utf-8，失败回退到 gbk）
+            try:
+                with open(txt_path, "r", encoding="utf-8") as f:
+                    text_content = f.read()
+            except UnicodeDecodeError:
+                with open(txt_path, "r", encoding="gbk") as f:
+                    text_content = f.read()
+                    
+            items, _ = extract_stock_codes_from_text(text_content)
+            extracted = [item[0] for item in items if item[0]]
+            
+            if not extracted:
+                logger.warning("\n⚠️ 未能从文本中识别到任何股票代码。")
+            else:
+                logger.info("\n✅ 文本识别提取结果：")
+                for code, name, conf in items:
+                    logger.info(f"  - 代码: {code} | 名称: {name or '未知'} | 置信度: {conf}")
+                cmd_stocks.extend(extracted)
+        except Exception as e:
+            logger.error(f"从文本提取股票代码失败: {e}")
+            return 1
+
+    # 解析合并最终的股票列表（统一为大写去重 Issue #355）
+    stock_codes = None
+    if cmd_stocks:
+        raw_canonical = [canonical_stock_code(c) for c in cmd_stocks]
+        seen = set()
+        stock_codes = [x for x in raw_canonical if not (x in seen or seen.add(x))]
+        logger.info(f"最终从命令行/图片/文字决定的分析列表: {stock_codes}")
 
     # === 处理 --webui / --webui-only 参数，映射到 --serve / --serve-only ===
     if args.webui:
