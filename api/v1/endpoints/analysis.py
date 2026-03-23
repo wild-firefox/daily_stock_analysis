@@ -61,6 +61,7 @@ from src.utils.data_processing import (
     normalize_model_used,
     parse_json_field,
     extract_fundamental_detail_fields,
+    extract_board_detail_fields,
 )
 
 logger = logging.getLogger(__name__)
@@ -259,6 +260,7 @@ def _handle_async_analysis_batch(
         selection_source=selection_source,
         report_type=request.report_type,
         force_refresh=request.force_refresh,
+        notify=request.notify,
     )
 
     accepted = [
@@ -337,7 +339,8 @@ def _handle_sync_analysis(
             stock_code=stock_code,
             report_type=request.report_type,
             force_refresh=request.force_refresh,
-            query_id=query_id
+            query_id=query_id,
+            send_notification=request.notify,
         )
 
         if result is None:
@@ -765,14 +768,21 @@ def _build_analysis_report(
         context_snapshot=context_snapshot,
         fallback_fundamental_payload=fallback_fundamental_payload,
     )
+    extracted_boards = extract_board_detail_fields(
+        context_snapshot=context_snapshot,
+        fallback_fundamental_payload=fallback_fundamental_payload,
+    )
     details = None
-    if details_data or any(extracted_fundamental.values()) or context_snapshot is not None:
+    has_board_details = bool(extracted_boards.get("belong_boards")) or extracted_boards.get("sector_rankings") is not None
+    if details_data or any(extracted_fundamental.values()) or has_board_details or context_snapshot is not None:
         details = ReportDetails(
             news_content=details_data.get("news_summary") or details_data.get("news_content"),
             raw_result=details_data,
             context_snapshot=context_snapshot,
             financial_report=extracted_fundamental.get("financial_report"),
             dividend_metrics=extracted_fundamental.get("dividend_metrics"),
+            belong_boards=extracted_boards.get("belong_boards"),
+            sector_rankings=extracted_boards.get("sector_rankings"),
         )
 
     return AnalysisReport(
