@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### 新功能
 
-- 🧾 **mian函数增加 --img-path -txt-path 字段** — 使用`python main.py --txt-path test.txt`,`python main.py --image-path test.jpg` 可直接使用识别图片或文字功能来进行对识别出的股票进行分析，`python main.py --image-path test.jpg --stocks 600519`表示加上手动配置的
+- 🧾 **mian函数增加 --image-path -txt-path 字段** — 使用`python main.py --txt-path test.txt`,`python main.py --image-path test.jpg` 可直接使用识别图片或文字功能来进行对识别出的股票进行分析，`python main.py --image-path test.jpg --stocks 600519`表示加上手动配置的
 - 🔔 **Web 端分析推送通知开关**（#808）— 首页分析按钮旁新增「推送通知」复选框，默认勾选；取消勾选时本次分析不发送 Telegram/企业微信等推送。API `POST /api/v1/analysis/analyze` 新增 `notify` 字段（`bool`，默认 `true`），不传时行为与修改前一致，Bot 和定时任务不受影响。
 
 ### 改进
