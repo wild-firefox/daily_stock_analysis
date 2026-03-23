@@ -628,7 +628,7 @@ class ImageStockExtractorContractTestCase(unittest.TestCase):
 
         with patch("src.services.image_stock_extractor.get_config", return_value=cfg), \
              patch("src.services.image_stock_extractor.litellm.completion", return_value=response) as mock_completion:
-            result = _call_litellm_vision("base64data", "image/jpeg")
+            result = _call_litellm_vision("base64data", "image/jpeg", model="gemini/gemini-2.0-flash")
 
         self.assertEqual(result, '["600519"]')
         mock_completion.assert_called_once()

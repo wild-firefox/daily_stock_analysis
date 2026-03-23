@@ -39,8 +39,8 @@ EXTRACT_PROMPT = """请分析这张股票市场截图或图片，提取其中所
 
 输出格式：仅返回有效的 JSON 数组，不要 markdown、不要解释。
 每个元素为对象：{"code":"股票代码","name":"股票名称","confidence":"high|medium|low"}
-- code: 必填，股票代码（A股6位、港股5位、美股1-5字母、ETF 如 159887/512880）
-- name: 若图中有名称则必填（如 贵州茅台、银行ETF、证券ETF），与代码一一对应；仅当图中确实无名称时可省略
+- code: 股票代码（A股6位、港股5位、美股1-5字母、ETF 如 159887/512880）；仅当图中确实无代码时可省略,填"XXX"
+- name: 若图中有名称则必填（如 贵州茅台、银行ETF、证券ETF），与代码一一对应；仅当图中确实无名称时可省略,填"XXX"
 - confidence: 必填，识别置信度，high=确定、medium=较确定、low=不确定
 
 示例（图中同时有名称和代码时）：
@@ -207,26 +207,6 @@ def _parse_items_from_text(text: str) -> List[Tuple[str, Optional[str], str]]:
     return [(c, None, "medium") for c in codes]
 
 
-def _resolve_vision_model() -> str:
-    """Determine the litellm model to use for vision, with gemini-3 downgrade."""
-    cfg = get_config()
-    # Prefer explicit vision model, then OPENAI_VISION_MODEL alias, then primary litellm model
-    model = (cfg.vision_model or cfg.openai_vision_model or cfg.litellm_model or "").strip()
-    if not model:
-        # Fallback: infer from available keys
-        if cfg.gemini_api_keys:
-            model = "gemini-3-flash-preview" # 2.5 # gemini-3-flash-preview
-        elif cfg.anthropic_api_keys:
-            model = f"anthropic/{cfg.anthropic_model or 'claude-3-5-sonnet-20241022'}"
-        elif cfg.openai_api_keys:
-            model = f"openai/{cfg.openai_model or 'gpt-4o-mini'}"
-        else:
-            return ""
-    # Gemini 3 does not support vision; downgrade to gemini-2.0-flash
-    if "gemini-3" in model:
-        model = "gemini/gemini-2.0-flash" # 2.5 # gemini-3-flash-preview
-    return model
-
 def _resolve_vision_models() -> List[str]:
     """获取所有候选的 Vision 模型列表（按优先级排序），支持自适应降级。"""
     cfg = get_config()
@@ -307,6 +287,40 @@ def _call_litellm_vision(image_b64: str, mime_type: str, model: str, api_key: Op
     raise ValueError("LiteLLM vision returned empty response")
 
 
+def _enrich_and_validate_items(items: List[Tuple[Optional[str], Optional[str], str]]) -> List[Tuple[str, str, str]]:
+    """使用基础信息字典进行缺位补全和严格校验"""
+    # 局部引入字典防止循环导入
+    from data_provider.stock_norm_mapping import STOCK_MAPPING
+    # 建立名称到代码的反向字典
+    NAME_TO_CODE = {v: k for k, v in STOCK_MAPPING.items() if v}
+
+    enriched = []
+    for code, name, conf in items:
+        # 当只有名称时，反查字典寻找代码
+        if name and code == 'XXX':
+            code = NAME_TO_CODE.get(name)
+            if not code:
+                raise ValueError(f"名称 '{name}' 在字典中找不到对应的代码，请手动填写代码。")
+        
+        # 当只有代码时，正查字典寻找名称
+        elif code and name == 'XXX':
+            name = STOCK_MAPPING.get(code)
+            if not name:
+                raise ValueError(f"代码 '{code}' 在字典中找不到对应的名称，请手动填写或检查。")
+                
+        # 当均存在时，可选检验其是否存在于字典中
+        elif code and name:
+            if code not in STOCK_MAPPING and name not in NAME_TO_CODE:
+                 raise ValueError(f"股票 '{code}' ('{name}') 在字典中均不存在，请手动填写或修正。")
+
+        # 兜底校验
+        if not code or not name:
+            raise ValueError("提取结果缺失代码或名称且无法互补填全，请手动填写代码。")
+            
+        enriched.append((code, name, conf))
+        
+    return enriched
+
 def extract_stock_codes_from_image(
     image_bytes: bytes,
     mime_type: str,
@@ -353,12 +367,15 @@ def extract_stock_codes_from_image(
         if not keys:
             continue
 
-        for attempt in range(2): # 每个模型最多尝试 2 次
+        for attempt in range(2): # 每个模型最多尝试 3 次
             try:
                 key = random.choice(keys) if keys else None
                 raw = _call_litellm_vision(image_b64, mime_type, model=model, api_key=key)
                 logger.debug("[ImageExtractor] raw LLM response:\n%s", raw)
+                # 最初提取
                 items = _parse_items_from_text(raw)
+                #引入字典数据补全与校验
+                items = _enrich_and_validate_items(items)
                 logger.info(
                     f"[ImageExtractor] {model} 提取 {len(items)} 个: "
                     f"{[(i[0], i[1]) for i in items[:5]]}{'...' if len(items) > 5 else ''}"

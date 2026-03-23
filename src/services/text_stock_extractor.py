@@ -16,6 +16,7 @@ from typing import List, Optional, Tuple
 from src.config import Config, get_config
 from src.services.image_stock_extractor import _parse_items_from_text
 
+
 logger = logging.getLogger(__name__)
 
 class _LiteLLMPlaceholder:
@@ -25,19 +26,25 @@ litellm = sys.modules.get("litellm") or _LiteLLMPlaceholder()
 
 TEXT_EXTRACT_PROMPT = """请分析以下文本/对话，提取其中提及的所有股票代码及名称。
 
-重要：提取文本中明确提到的股票。如果同时有名称和代码，必须同时提取。每个元素必须包含 code 和 name 字段。
+重要：若图中同时显示股票名称和代码（如自选股列表、ETF 列表），必须同时提取两者，每个元素必须包含 code 和 name 字段。
 
 输出格式：仅返回有效的 JSON 数组，不要 markdown、不要解释。
 每个元素为对象：{"code":"股票代码","name":"股票名称","confidence":"high|medium|low"}
-- code: 必填，股票代码（A股6位、港股5位、美股1-5字母、ETF 如 159887/512880）
-- name: 必填，股票名称。若文中仅有代码无名称可填 null
-- confidence: 必填，识别置信度，high=明确提及、medium=可能提及、low=疑似代码
+- code: 股票代码（A股6位、港股5位、美股1-5字母、ETF 如 159887/512880）；仅当图中确实无代码时可省略,填"XXX"
+- name: 若图中有名称则必填（如 贵州茅台、银行ETF、证券ETF），与代码一一对应；仅当图中确实无名称时可省略,填"XXX"
+- confidence: 必填，识别置信度，high=确定、medium=较确定、low=不确定
+
+示例（图中同时有名称和代码时）：
+- 个股：600519 贵州茅台、300750 宁德时代
+- 港股：00700 腾讯控股、09988 阿里巴巴
+- 美股：AAPL 苹果、TSLA 特斯拉
+- ETF：159887 银行ETF、512880 证券ETF、512000 券商ETF、512480 半导体ETF、515030 新能源车ETF
 
 输出示例：[{"code":"600519","name":"贵州茅台","confidence":"high"},{"code":"159887","name":"银行ETF","confidence":"high"}]
-禁止只返回代码数组如 ["159887","512880"]，必须使用对象格式。若未找到任何股票代码，返回：[]
 
 需要分析的文本内容如下：
 {text}"""
+
 
 def _get_text_models() -> List[str]:
     """获取文本模型优先级列表"""
@@ -64,6 +71,41 @@ def _get_api_keys_for_model(model: str, cfg: Config) -> List[str]:
     if model.startswith("anthropic/"):
         return [k for k in cfg.anthropic_api_keys if k and len(k) >= 8]
     return [k for k in cfg.openai_api_keys if k and len(k) >= 8]
+
+
+def _enrich_and_validate_items(items: List[Tuple[Optional[str], Optional[str], str]]) -> List[Tuple[str, str, str]]:
+    """使用基础信息字典进行缺位补全和严格校验"""
+    # 局部引入字典防止循环导入
+    from data_provider.stock_norm_mapping import STOCK_MAPPING
+    # 建立名称到代码的反向字典
+    NAME_TO_CODE = {v: k for k, v in STOCK_MAPPING.items() if v}
+
+    enriched = []
+    for code, name, conf in items:
+        # 当只有名称时，反查字典寻找代码
+        if name and code == 'XXX':
+            code = NAME_TO_CODE.get(name)
+            if not code:
+                raise ValueError(f"名称 '{name}' 在字典中找不到对应的代码，请手动填写代码。")
+        
+        # 当只有代码时，正查字典寻找名称
+        elif code and name == 'XXX':
+            name = STOCK_MAPPING.get(code)
+            if not name:
+                raise ValueError(f"代码 '{code}' 在字典中找不到对应的名称，请手动填写或检查。")
+                
+        # 当均存在时，可选检验其是否存在于字典中
+        elif code and name:
+            if code not in STOCK_MAPPING and name not in NAME_TO_CODE:
+                 raise ValueError(f"股票 '{code}' ('{name}') 在字典中均不存在，请手动填写或修正。")
+
+        # 兜底校验
+        if not code or not name:
+            raise ValueError("提取结果缺失代码或名称且无法互补填全，请手动填写代码。")
+            
+        enriched.append((code, name, conf))
+        
+    return enriched
 
 def extract_stock_codes_from_text(text: str) -> Tuple[List[Tuple[str, Optional[str], str]], str]:
     """使用 LLM 从纯文本中提取股票代码。"""
@@ -111,6 +153,8 @@ def extract_stock_codes_from_text(text: str) -> Tuple[List[Tuple[str, Optional[s
                 response = litellm.completion(**kwargs)
                 raw = response.choices[0].message.content
                 items = _parse_items_from_text(raw)
+
+                items = _enrich_and_validate_items(items)
                 
                 logger.info(
                     f"[TextExtractor] {model} 提取 {len(items)} 个: "
@@ -129,3 +173,36 @@ def extract_stock_codes_from_text(text: str) -> Tuple[List[Tuple[str, Optional[s
                     time.sleep(1)
 
     raise ValueError(f"文本提取调用失败，已穷尽所有可用模型。最后错误: {last_error}") from last_error
+
+if __name__ == "__main__":
+    '''
+    python -m src.services.text_stock_extractor
+    '''
+    from src.config import setup_env
+    setup_env()
+    import os
+    # Proxy config - controlled by USE_PROXY env var, off by default.
+    # Set USE_PROXY=true in .env if you need a local proxy (e.g. mainland China).
+    # GitHub Actions always skips this regardless of USE_PROXY.
+    if os.getenv("GITHUB_ACTIONS") != "true" and os.getenv("USE_PROXY", "false").lower() == "true":
+        proxy_host = os.getenv("PROXY_HOST", "127.0.0.1")
+        proxy_port = os.getenv("PROXY_PORT", "10809")
+        proxy_url = f"http://{proxy_host}:{proxy_port}"
+        os.environ["http_proxy"] = proxy_url
+        os.environ["https_proxy"] = proxy_url
+    # 简单测试
+    test_text = """
+    1、江瀚新材：公司根据市场规则对产品销售报价作出了调整，普遍涨幅在20%-40%。
+
+    2、万兴科技：部分图示脑图Skills正式上线ClawHub。
+
+    3、商务部发布《关于促进旅行服务出口 扩大入境消费的政策措施》。（陕西旅游、长白山）
+
+    4、全球首个脑机接口创新产品获得医保编码。（创新医疗、三博脑科）
+
+    5、霍尔木兹海峡梗阻氦气价格上涨40%。（华特气体、金宏气体）
+
+    """
+    items, raw = extract_stock_codes_from_text(test_text)
+    print("提取结果:", items)
+    print("原始 LLM 输出:", raw)

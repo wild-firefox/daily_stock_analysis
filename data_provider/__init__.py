@@ -37,6 +37,7 @@ from .pytdx_fetcher import PytdxFetcher
 from .baostock_fetcher import BaostockFetcher
 from .yfinance_fetcher import YfinanceFetcher
 from .us_index_mapping import is_us_index_code, is_us_stock_code, get_us_index_yf_symbol, US_INDEX_MAPPING
+from .stock_norm_mapping import STOCK_MAPPING
 
 __all__ = [
     'BaseFetcher',
