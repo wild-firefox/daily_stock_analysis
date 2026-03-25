@@ -232,8 +232,15 @@ python main.py --schedule
 # Analyze specific stocks
 python main.py --stocks AAPL,TSLA,GOOGL
 
+# Analyze from image
+python main.py --image-path test.jpg
+
+# Analyze from text file
+python main.py --txt-path notes.txt
+
 # Market review only
 python main.py --market-review
+
 ```
 
 ### API Endpoints

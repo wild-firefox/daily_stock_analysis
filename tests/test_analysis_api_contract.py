@@ -407,7 +407,6 @@ class AnalysisApiContractTestCase(unittest.TestCase):
                     report_type="detailed",
                     force_refresh=False,
                     async_mode=True,
-                    notify=True 
                     notify=True,
                 ),
                 config=SimpleNamespace(),
@@ -422,7 +421,6 @@ class AnalysisApiContractTestCase(unittest.TestCase):
             selection_source="manual",
             report_type="detailed",
             force_refresh=False,
-            notify=True 
             notify=True,
         )
 
@@ -515,7 +513,6 @@ class AnalysisApiContractTestCase(unittest.TestCase):
                     report_type="detailed",
                     force_refresh=False,
                     async_mode=True,
-                    notify=True 
                     notify=True,
                 ),
                 config=SimpleNamespace(),
@@ -529,7 +526,6 @@ class AnalysisApiContractTestCase(unittest.TestCase):
             selection_source="manual",
             report_type="detailed",
             force_refresh=False,
-            notify=True 
             notify=True,
         )
 
@@ -552,7 +548,6 @@ class AnalysisApiContractTestCase(unittest.TestCase):
                     report_type="detailed",
                     force_refresh=False,
                     async_mode=True,
-                    notify=True 
                     notify=True,
                 ),
                 config=SimpleNamespace(),
@@ -566,7 +561,6 @@ class AnalysisApiContractTestCase(unittest.TestCase):
             selection_source="manual",
             report_type="detailed",
             force_refresh=False,
-            notify=True 
             notify=True,
         )
 
@@ -588,7 +582,6 @@ class AnalysisApiContractTestCase(unittest.TestCase):
                     report_type="detailed",
                     force_refresh=False,
                     async_mode=True,
-                    notify=True 
                     notify=True,
                 ),
                 config=SimpleNamespace(),
@@ -602,7 +595,6 @@ class AnalysisApiContractTestCase(unittest.TestCase):
             selection_source="import",
             report_type="detailed",
             force_refresh=False,
-            notify=True 
             notify=True,
         )
 
@@ -627,7 +619,6 @@ class AnalysisApiContractTestCase(unittest.TestCase):
                         report_type="detailed",
                         force_refresh=False,
                         async_mode=True,
-                        notify=True 
                         notify=True,
                     ),
                     config=SimpleNamespace(),
@@ -642,7 +633,6 @@ class AnalysisApiContractTestCase(unittest.TestCase):
                         report_type="detailed",
                         force_refresh=False,
                         async_mode=True,
-                        notify=True  # 新增此项
                         notify=True,
                     ),
                     config=SimpleNamespace(),
@@ -682,7 +672,6 @@ class AnalysisApiContractTestCase(unittest.TestCase):
                     report_type="detailed",
                     force_refresh=False,
                     async_mode=True,
-                    notify=True 
                     notify=True,
                 ),
                 config=SimpleNamespace(),
@@ -696,7 +685,6 @@ class AnalysisApiContractTestCase(unittest.TestCase):
             selection_source="import",
             report_type="detailed",
             force_refresh=False,
-            notify=True 
             notify=True,
         )
 

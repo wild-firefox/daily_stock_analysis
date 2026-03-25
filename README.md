@@ -251,8 +251,17 @@ pip install -r requirements.txt
 # 配置环境变量
 cp .env.example .env && vim .env
 
-# 运行分析
+# 默认分析配置好的自选股列表
 python main.py
+
+# 临时指定股票进行分析（覆盖配置）
+python main.py --stocks 600519,hk00700,AAPL
+
+# 从图片（如自选股截图）自动识别股票并进行分析
+python main.py --image-path test.jpg
+
+# 从文本文件（如聊天记录/笔记）提取股票并进行分析
+python main.py --txt-path notes.txt
 ```
 
 如果你不用 Web，推荐直接在 `.env` 里按条写渠道：

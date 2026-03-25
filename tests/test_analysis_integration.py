@@ -78,8 +78,7 @@ class TestAnalysisIntegration:
         assert kwargs["original_query"] == "贵州茅台"
         assert kwargs["selection_source"] == "manual"
         assert kwargs["report_type"] == "detailed"
-        assert kwargs["force_refresh"] is False,
-            notify=True  # 新增这一行：预期包含 notify=True
+        assert kwargs["force_refresh"] is False
         assert kwargs["notify"] is True
 
     def test_trigger_analysis_batch_deduplication(self, client, mock_task_queue):
