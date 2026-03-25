@@ -1,6 +1,6 @@
-# Image Extract Prompt (txt LLM)
+# TEXT Extract Prompt (txt LLM)
 
-本文档记录 `src/services/txt_stock_extractor.py` 中 `TEXT_EXTRACT_PROMPT` 的完整内容，便于 PR 审查时评估指令效果。
+本文档记录 `src/services/text_stock_extractor.py` 中 `TEXT_EXTRACT_PROMPT` 的完整内容，便于 PR 审查时评估指令效果。
 
 **当修改 TEXT_EXTRACT_PROMPT 时**：请同步更新此文件，并在 PR 描述中展示完整变更（before/after），以便审查者评估针对 code+name+confidence 提取的优化程度。
 

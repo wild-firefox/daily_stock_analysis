@@ -93,12 +93,18 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         '--image-path',
         type=str,
+        nargs='?',
+        const='',
+        default=None,
         help='指定包含股票信息的图片路径，系统将自动识别提取并进行分析'
     )
 
     parser.add_argument(
         '--txt-path',
         type=str,
+        nargs='?',
+        const='',
+        default=None,
         help='指定包含股票信息的文本文件路径，系统将自动使用大模型提取股票代码'
     )
 
@@ -552,8 +558,12 @@ def main() -> int:
         cmd_stocks.extend([c.strip() for c in args.stocks.split(',') if c.strip()])
 
     # === 新增：从图片提取股票 ===
-    if getattr(args, 'image_path', None):
-        image_path = args.image_path
+    if getattr(args, 'image_path', None) is not None:
+        image_path = args.image_path.strip()
+        if not image_path:
+            logger.error("❌ 错误: 使用了 --image-path 参数，但未指定具体的文件路径。示例: python main.py --image-path test.jpg")
+            return 1
+            
         if not os.path.exists(image_path):
             logger.error(f"指定的图片不存在: {image_path}")
             return 1
@@ -591,8 +601,12 @@ def main() -> int:
             return 1
         
     # === 新增：从文本文件提取股票 ===
-    if getattr(args, 'txt_path', None):
-        txt_path = args.txt_path
+    if getattr(args, 'txt_path', None) is not None:
+        txt_path = args.txt_path.strip()
+        if not txt_path:
+            logger.error("❌ 错误: 使用了 --txt-path 参数，但未指定具体的文件路径。示例: python main.py --txt-path sample.txt")
+            return 1
+            
         if not os.path.exists(txt_path):
             logger.error(f"指定的文本文件不存在: {txt_path}")
             return 1

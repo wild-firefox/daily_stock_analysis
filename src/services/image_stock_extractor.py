@@ -180,12 +180,20 @@ def _parse_items_from_text(text: str) -> List[Tuple[str, Optional[str], str]]:
             if not isinstance(item, dict):
                 continue
             code_raw = item.get("code") if isinstance(item.get("code"), str) else None
-            if not code_raw:
+            # 如果大模型填了缺省符 XXX，原样保留；否则进行正常标准化
+            if code_raw == "XXX":
+                code = "XXX"
+            else:
+                code = _normalize_code(code_raw)
+                
+            if not code or code in _FAKE_CODES:
                 continue
-            code = _normalize_code(code_raw)
-            if not code or code in seen or code in _FAKE_CODES:
-                continue
-            seen.add(code)
+                
+            # 只有真实的股票代码才参与去重，防止多个只有名字的股票互斥
+            if code != "XXX":
+                if code in seen:
+                    continue
+                seen.add(code)
             name = item.get("name")
             if isinstance(name, str) and name.strip():
                 name = name.strip()
