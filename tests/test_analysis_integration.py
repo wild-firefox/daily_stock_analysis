@@ -68,16 +68,19 @@ class TestAnalysisIntegration:
         assert data["task_id"] == "test_task_123"
         assert data["status"] == "pending"
 
-        # Verify task queue received the correct resolved code and metadata
-        mock_task_queue.submit_tasks_batch.assert_called_once_with(
-            stock_codes=["600519"],
-            stock_name=None,
-            original_query="贵州茅台",
-            selection_source="manual",
-            report_type="detailed",
-            force_refresh=False,
+        # Verify task queue received the correct resolved code and metadata.
+        # Use call_args so this integration test stays focused on analysis flow
+        # semantics even if the queue API gains orthogonal optional flags.
+        mock_task_queue.submit_tasks_batch.assert_called_once()
+        _, kwargs = mock_task_queue.submit_tasks_batch.call_args
+        assert kwargs["stock_codes"] == ["600519"]
+        assert kwargs["stock_name"] is None
+        assert kwargs["original_query"] == "贵州茅台"
+        assert kwargs["selection_source"] == "manual"
+        assert kwargs["report_type"] == "detailed"
+        assert kwargs["force_refresh"] is False,
             notify=True  # 新增这一行：预期包含 notify=True
-        )
+        assert kwargs["notify"] is True
 
     def test_trigger_analysis_batch_deduplication(self, client, mock_task_queue):
         """Test de-duplication across different formats (600519 and 600519.SH)."""

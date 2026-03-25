@@ -51,6 +51,8 @@
 
 > 历史报告详情会优先展示 AI 返回的原始「狙击点位」文本，避免区间价、条件说明等复杂内容在历史回看时被压缩成单个数字。
 
+> Web 界面做小调整：首页进一步收敛了样式层级与移动端滚动体验，修复bug；问股页为 AI 回复新增消息复制按钮，并补强了会话导出、通知发送、历史删除和追问参数保护；首页「原始分析结果 / 分析快照」复制反馈改为按面板独立。
+
 > Web 管理认证支持运行时开关；如果系统中已保留管理员密码，重新开启认证时必须提供当前密码，避免在认证关闭窗口内直接获取新的管理员会话。
 > 多进程/多 worker 部署时，认证开关仅在当前进程即时生效；需重启或滚动重启全部 worker 以统一状态。
 
@@ -427,9 +429,9 @@ LITELLM_MODEL=openai/deepseek-chat
 如果本项目对你有帮助，欢迎支持项目的持续维护与迭代，感谢支持 🙏  
 赞赏可备注联系方式，祝股市长虹
 
-| 支付宝 (Alipay) | 微信支付 (WeChat) | Ko-fi |
+| 支付宝 (Alipay) | 微信支付 (WeChat) | 小红书 |
 | :---: | :---: | :---: |
-| <img src="./sources/alipay.jpg" width="200" alt="Alipay"> | <img src="./sources/wechatpay.jpg" width="200" alt="WeChat Pay"> | <a href="https://ko-fi.com/mumu157" target="_blank"><img src="./sources/ko-fi.png" width="200" alt="Ko-fi"></a> |
+| <img src="./sources/alipay.jpg" width="200" alt="Alipay"> | <img src="./sources/wechatpay.jpg" width="200" alt="WeChat Pay"> | <img src="./sources/xiaohongshu.png" width="200" alt="小红书"> |
 
 ---
 
