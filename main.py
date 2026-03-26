@@ -646,9 +646,9 @@ def main() -> int:
             logger.error(f"从文本提取股票代码失败: {e}")
             return 1
 
+    stock_codes = None
     # 解析合并最终的股票列表（统一为大写去重 Issue #355）
     if args.stocks or args.image_path is not None or args.txt_path is not None: 
-        stock_codes = list(set(raw_canonical))
         raw_canonical = [canonical_stock_code(c) for c in cmd_stocks]
         seen = set()
         stock_codes = [x for x in raw_canonical if not (x in seen or seen.add(x))]
@@ -657,7 +657,6 @@ def main() -> int:
             logger.warning("⚠️ 从命令行参数、图片和文本提取后没有有效的股票代码，程序将退出。")
             return 1
     else:
-        stock_codes = None
         logger.info("默认使用配置文件中的 STOCK_LIST")
 
     # === 处理 --webui / --webui-only 参数，映射到 --serve / --serve-only ===
