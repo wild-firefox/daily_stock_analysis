@@ -526,11 +526,14 @@ def start_bot_stream_clients(config: Config) -> None:
 
 
 def _resolve_scheduled_stock_codes(stock_codes: Optional[List[str]]) -> Optional[List[str]]:
-    """Scheduled runs should always read the latest persisted watchlist."""
+    """Scheduled runs should always read the latest persisted watchlist, 
+       unless explicitly provided via CLI/Image/Text overriding."""
     if stock_codes is not None:
         logger.warning(
-            "定时模式下检测到 --stocks 参数；计划执行将忽略启动时股票快照，并在每次运行前重新读取最新的 STOCK_LIST。"
+            "定时模式下检测到已通过图片/文档/命令行传入了自定义股票列表。\n"
+            "⚠️ 注意：本次定时任务服务运行期间，将锁定并持续分析这批指定的股票，.env 中配置项的动态更新将不再对其生效。"
         )
+        return stock_codes
     return None
 
 
@@ -648,11 +651,13 @@ def main() -> int:
 
     # 解析合并最终的股票列表（统一为大写去重 Issue #355）
     stock_codes = None
-    if cmd_stocks:
+    if len(cmd_stocks) > 0:
         raw_canonical = [canonical_stock_code(c) for c in cmd_stocks]
         seen = set()
         stock_codes = [x for x in raw_canonical if not (x in seen or seen.add(x))]
         logger.info(f"最终从命令行/图片/文字决定的分析列表: {stock_codes}")
+    else:
+        logger.info("默认使用配置文件中的 STOCK_LIST")
 
     # === 处理 --webui / --webui-only 参数，映射到 --serve / --serve-only ===
     if args.webui:

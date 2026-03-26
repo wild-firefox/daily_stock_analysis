@@ -86,22 +86,27 @@ def _enrich_and_validate_items(items: List[Tuple[Optional[str], Optional[str], s
         if name and code == 'XXX':
             code = NAME_TO_CODE.get(name)
             if not code:
-                raise ValueError(f"名称 '{name}' 在字典中找不到对应的代码，请手动填写代码。")
+                logger.warning(f"名称 '{name}' 在字典中找不到对应的代码，无法补全。")
+                continue
         
         # 当只有代码时，正查字典寻找名称
         elif code and name == 'XXX':
             name = STOCK_MAPPING.get(code)
             if not name:
-                raise ValueError(f"代码 '{code}' 在字典中找不到对应的名称，请手动填写或检查。")
+                logger.warning(f"代码 '{code}' 在字典中找不到对应的名称，无法补全。")
+                continue
                 
         # 当均存在时，可选检验其是否存在于字典中
         elif code and name:
             if code not in STOCK_MAPPING and name not in NAME_TO_CODE:
-                 raise ValueError(f"股票 '{code}' ('{name}') 在字典中均不存在，请手动填写或修正。")
+                 logger.warning(f"代码 '{code}' 和名称 '{name}' 在字典中均不存在，可能是识别错误。")
+                 continue
 
         # 兜底校验
         if not code or not name:
-            raise ValueError("提取结果缺失代码或名称且无法互补填全，请手动填写代码。")
+                logger.warning(f"提取结果缺失代码或名称且无法互补填全: code='{code}', name='{name}'。请手动填写代码或名称。")
+                continue
+
             
         enriched.append((code, name, conf))
         
