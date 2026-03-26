@@ -647,13 +647,17 @@ def main() -> int:
             return 1
 
     # 解析合并最终的股票列表（统一为大写去重 Issue #355）
-    stock_codes = None
-    if len(cmd_stocks) > 0:
+    if args.stocks or args.image_path is not None or args.txt_path is not None: 
+        stock_codes = list(set(raw_canonical))
         raw_canonical = [canonical_stock_code(c) for c in cmd_stocks]
         seen = set()
         stock_codes = [x for x in raw_canonical if not (x in seen or seen.add(x))]
         logger.info(f"最终从命令行/图片/文字决定的分析列表: {stock_codes}")
+        if len(stock_codes) == 0:
+            logger.warning("⚠️ 从命令行参数、图片和文本提取后没有有效的股票代码，程序将退出。")
+            return 1
     else:
+        stock_codes = None
         logger.info("默认使用配置文件中的 STOCK_LIST")
 
     # === 处理 --webui / --webui-only 参数，映射到 --serve / --serve-only ===
