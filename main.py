@@ -526,14 +526,11 @@ def start_bot_stream_clients(config: Config) -> None:
 
 
 def _resolve_scheduled_stock_codes(stock_codes: Optional[List[str]]) -> Optional[List[str]]:
-    """Scheduled runs should always read the latest persisted watchlist, 
-       unless explicitly provided via CLI/Image/Text overriding."""
+    """Scheduled runs should always read the latest persisted watchlist."""
     if stock_codes is not None:
         logger.warning(
-            "定时模式下检测到已通过图片/文档/命令行传入了自定义股票列表。\n"
-            "⚠️ 注意：本次定时任务服务运行期间，将锁定并持续分析这批指定的股票，.env 中配置项的动态更新将不再对其生效。"
+            "定时模式下检测到 --stocks --image-path --txt-path 参数；计划执行将忽略启动时股票快照，并在每次运行前重新读取最新的 STOCK_LIST。"
         )
-        return stock_codes
     return None
 
 

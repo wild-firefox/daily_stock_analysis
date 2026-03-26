@@ -96,7 +96,7 @@ class MainScheduleModeTestCase(unittest.TestCase):
         self.assertEqual(scheduled_call, {"schedule_time": "18:00", "run_immediately": True})
         run_full_analysis.assert_called_once_with(config, args, None)
         warning_log.assert_any_call(
-            "定时模式下检测到 --stocks 参数；计划执行将忽略启动时股票快照，并在每次运行前重新读取最新的 STOCK_LIST。"
+            "定时模式下检测到 --stocks --image-path --txt-path 参数；计划执行将忽略启动时股票快照，并在每次运行前重新读取最新的 STOCK_LIST。"
         )
 
     def test_single_run_keeps_cli_stock_override(self) -> None:
